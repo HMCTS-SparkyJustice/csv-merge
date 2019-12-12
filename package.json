@@ -1,0 +1,20 @@
+{
+  "name": "merge-csv",
+  "version": "1.0.0",
+  "description": "append csv records to court csv files",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/sparkyjustice/csv-merge.git"
+  },
+  "dependencies": {
+    "csv-parser": "^2.3.2",
+    "json2csv": "^4.5.4"
+  }
+}
