@@ -1,186 +1,250 @@
-
-//requiring path and fs modules
 const path = require('path');
 const fs = require('fs');
 const csv = require('csv-parser');
-const ExcelJS = require('exceljs');
-var results = [];
-var csvOut = new Object();
+const csvToJson = require('csvtojson')
+const excelJS = require('exceljs');
+// var dataOut = new Object();
+// let csvIn = new Object();
+var dataOut = [];
+var csvIn = [];
+var fileList = [];
+var xlsxFileNameCourt, 
 
-//joining path of directory
 const directoryPath = path.join(__dirname, 'FMC-data');
 
-//passsing directoryPath and callback function
+function main() {
+  console.log('**************** main ************')
 
-fs.readdir(directoryPath, function (err, files) {
-    //handling error
-  if (err) {
-      return console.log('Unable to scan directory: ' + err);
-  }
+  // read all the files in the directory
 
-  // process all files using forEach
+  fs.readdir(directoryPath, function( error, files) {
+    if ( error ) {
+        return console.log("Error reading directory contents.");
+    };
+    for (var i=0; i<files.length; i++) { 
+      // copy the files into the fileList array
+      fileList.push(files[i]);
+      console.log('files[i] ' + files[i])
+    }; // end for loop directory
+    console.log('fileList fs.readdir ' + fileList);
+    console.log('fileList length ' + fileList.length);    
 
-  files.forEach(function (file) {
-    let filename = directoryPath + '/' + file;
-    readCsv(filename, function (err, csvOut) {
-        //handling error
-      if (err) {
-          return console.log('cannot readCsv: ' + err);
-      };
-    });
-  });
-});
+    // process each file
+
+    for (var i=0; i<fileList.length; i++) {
+      let csvFileLocation = directoryPath + '/' + fileList[i];
+      var isCsvFile = csvFileLocation.includes(".csv")
+      console.log('csvFileLocation in for loop ' + csvFileLocation);
+      if (isCsvFile) {
+        console.log('* csv file *' + csvFileLocation);
+          // read the csv file
+        readCsv(csvFileLocation, function (error, csvIn) {
+          if (error) {
+            return console.log('cannot readCsv: ' + error);
+          };         
+        });
+        console.log('csvIn main ' + JSON.stringify(csvIn));          
+        console.log(csvIn);
+
+        // create the row for output
+        createRow(csvIn, function (error, dataOut) {
+          if (error) {
+            return console.log('cannot createRow: ' + error);
+          };
+        });
+        const allData = {...csvIn, ...dataOut};
+        console.log('allData ' + allData);
+
+        
+        // write the row object to the spreadsheet if it exists if not error
+
+        return new Promise( function (resolve, reject ) {
+          try {
+            fs.accessSync(xlsxFileLocation);
+            console.log('can read/write')
+            writeXlsx(xlsxFileLocation, allData, function (error, retval) {
+              if (error) {
+                return console.log('cannot writeXlsx: ' + error);
+              }          
+            });
+          } catch (err) {
+          console.error('no access!')
+          };
+        }); // end promise
+      } // end if csvFile
+      else {
+        console.log('* non csv file found *' + csvFileLocation)
+        // 
+      }; // end else csvFile
+    }; // end for loop for files
+  }); // end readdir
+};  // end main
+
+
 // read the csv file
-function readCsv(filename, csvOut) {
 
-  console.log('filename ' + filename)
-  fs.createReadStream(filename)
-    .pipe(csv())
-    .on('data', (data) => results.push(data))
-    .on('end', () => {
-    console.log(results);
-    var csvIn = results[0];
-    var d = Date();
-    csvOut.timestamp = d.substring(0,24);
-    csvOut.submission_id = csvIn.submission_id;
-    csvOut.court = csvIn.court;
-    csvOut.user_type = csvIn.user_type;
+function readCsv(csvFileLocation) {
+  console.log('**************** readCsv ************');
+  console.log('csvFileLocation readCsv ' + csvFileLocation);
 
-    if (csvIn.hasOwnProperty('another_reason')) {
-      console.log('another ')
-      csvOut.another_reason = csvIn.another_reason;
-      }
-    else {
-      csvOut.another_reason = "";
-      }
+  csvToJson()
+  .fromFile(csvFileLocation)
+  .then((dataIn)=>{
+    console.log('dataIn csvToJson ' + JSON.stringify(dataIn));
+     // create the output row
+    /*createRow(csvIn, function (error, dataOut) {
+      if (error) {
+      return console.log('cannot createRow: ' + error);
+      };
+    }); */
+    let csvIn = dataIn;
+  });
+  console.log('csvIn type = ' + typeof(csvIn));
 
-    if (csvIn.hasOwnProperty('facilities')) {
-      console.log('facilities ')
-      csvOut.facilities = csvIn.facilities;
-      }
-    else {
-      console.log('no facilities ')
+}; // end readCsv
 
-      csvOut.facilities = "";
-      }
+// create the row object
 
-    if (csvIn.hasOwnProperty('staff'))  {
-      console.log('staff ')
-      csvOut.staff = csvIn.staff;
-      }
-    else {
-      csvOut.staff = "";
-      }
+function createRow(csvIn) {
+  console.log('**************** createRow ************')
 
-    if (csvIn.hasOwnProperty('security_and_safety')) {
-      console.log('safety ')
-      csvOut.security_and_safety = csvIn.security_and_safety;
-      }
-    else {
-      csvOut.security_and_safety = "";
-      }
+  console.log('csvIn createRow ' + JSON.stringify(csvIn));
+  console.log(csvIn);
 
-    if (csvIn.hasOwnProperty('information_and_guidance')) {
-      console.log('info ')
-      csvOut.information_and_guidance = csvIn.information_and_guidance;
-      }
-    else {
-      csvOut.information_and_guidance = "";
-      }
+  var dateTime = csvIn[0].submission_at.replace(/[T,Z]/g," ");
+  dataOut.timestamp = dateTime;
+  dataOut.submission_id = csvIn[0].submission_id;
+  dataOut.court = csvIn[0].court;
+  dataOut.user_type = csvIn[0].user_type;
 
-    if (csvIn.hasOwnProperty('something_else'))  {
-      console.log('something ')
-      csvOut.something_else = csvIn.something_else;
-      }
-    else {
-      csvOut.something_else = "";
-      }
-
-    csvOut.what_happened = csvIn.what_happened;
-    csvOut.want_reply = csvIn.want_reply;
-
-    if (csvIn.hasOwnProperty('email_address'))  {
-      console.log('email_address ')
-      csvOut.email_address = csvIn.email_address;
-      }
-    else {
-      csvOut.email_address = "";
+  if (csvIn[0].hasOwnProperty('another_reason')) {
+//      console.log('another ')
+    dataOut.another_reason = csvIn[0].another_reason;
+    }
+  else {
+    dataOut.another_reason = "";
     }
 
-  str = JSON.stringify(csvOut);
-  console.log('csvOut ' + str);
-  });
-  writeCsv(csvOut, function (err, retval) {
-      //handling error
-    if (err) {
-        return console.log('cannot readCsv: ' + err);
-    };
-  });
-} // end csvRead
+  if (csvIn[0].hasOwnProperty('facilities')) {
+//      console.log('facilities ')
+    dataOut.facilities = csvIn[0].facilities;
+    }
+  else {
+    dataOut.facilities = "";
+    }
 
-// write to court file
+  if (csvIn[0].hasOwnProperty('staff'))  {
+//      console.log('staff ')
+    dataOut.staff = csvIn[0].staff;
+    }
+  else {
+    dataOut.staff = "";
+    }
 
-function writeCsv(csvOut) {
+  if (csvIn[0].hasOwnProperty('security_and_safety')) {
+//      console.log('safety ')
+    dataOut.security_and_safety = csvIn[0].security_and_safety;
+    }
+  else {
+    dataOut.security_and_safety = "";
+    }
 
-//  const pathnameCourt = path.join(__dirname, csvOut.court, '-fmc-responses.xlsx');
-  const pathnameCourt = csvOut.court + '-fmc-responses.xls';
-  console.log('pathnameCourt ' + pathnameCourt );
-  const createCsvWriterCourt = require('csv-writer').createObjectCsvWriter;
-  const csvWriterCourt = createCsvWriterCourt({
-    path: pathnameCourt,
-    header: [
-    'timestamp',
-    'submission_id',
-    'court',
-    'user_type',
-    'another_reason',
-    'facilities',
-    'staff',
-    'security_and_safety',
-    'information_and_guidance',
-    'something_else',
-    'what_happened',
-    'want_reply',
-    'email_address'],
-    append: 'true'
-    });
-  const recordsCourt = [
-   csvOut
+  if (csvIn[0].hasOwnProperty('information_and_guidance')) {
+//      console.log('info ')
+    dataOut.information_and_guidance = csvIn[0].information_and_guidance;
+    }
+  else {
+    dataOut.information_and_guidance = "";
+    }
+
+  if (csvIn[0].hasOwnProperty('something_else'))  {
+//      console.log('something ')
+    dataOut.something_else = csvIn[0].something_else;
+    }
+  else {
+    dataOut.something_else = "";
+    }
+
+  dataOut.what_happened = csvIn[0].what_happened;
+  dataOut.want_reply = csvIn[0].want_reply;
+
+  if (csvIn[0].hasOwnProperty('email_address'))  {
+//      console.log('email_address ')
+    dataOut.email_address = csvIn[0].email_address;
+    }
+  else {
+    dataOut.email_address = "";
+  }
+
+  str = JSON.stringify(dataOut);
+  console.log('dataOut createRow ' + str);
+
+}; // end createRow
+
+// initialise spreadsheet file - if it doesn't exist output an error
+
+function initWorkbook (path) {
+/*  var workbook = new excelJS.Workbook();
+  workbook.creator = 'HMCTS';
+  workbook.lastModifiedBy = 'HMCTS';
+  workbook.created = new Date();
+  workbook.modified = new Date();
+  var workSheet = workbook.addWorksheet('courtName');
+  var reColumns=[
+      {header:'Date submitted',key:'dateSubmitted'},
+      {header:'User type',key:'userType'},
+      {header:'Another user type',key:'anotherUserType'},
+      {header:'About facilities',key:'aboutFacilities'},
+      {header:'About staff',key:'aboutStaff'},
+      {header:'About security and safety',key:'aboutSecuritySafety'},
+      {header:'About information and guidance',key:'aboutInformationGuidance'},
+      {header:'About something else',key:'aboutSomethingElse'},
+      {header:'More information',key:'moreInformation'}
   ];
+  */
+  fs.access(path, fs.F_OK, (err,spreadsheetExists) => {
+  if (err) {
+    console.error(err)
+    spreadsheetExists = false;
+  }
+    spreadsheetExists = true;
+  
+  })
 
-  csvWriterCourt.writeRecords(recordsCourt)       // returns a promise
+}; // end initWorkbook
+
+function writeXlsx(xlsxFileNameCourt, dataOut) {
+  console.log('**************** writeXlsx ************')
+  console.log('xlsxFileNameCourt ' + xlsxFileNameCourt );
+
+
+  // write to court file
+  str = JSON.stringify(dataOut);
+  console.log('dataOut writeXlsx ' + str);
+  //  const xlsxFileNameCourt = path.join(__dirname, dataOut.court, '-fmc-responses.xlsx');
+//  const createCsvWriterCourt = require('csv-writer').createObjectCsvWriter;
+  var workbook = new excelJS.Workbook();
+  var worksheet = workbook.getWorksheet(1);
+  workbook.xlsx.readFile(xlsxFileNameCourt)
+  .then(function() {
+    console.log('writexlsx worksheet ' + worksheet);
+    worksheet.addRow(dataOut);
+    worksheet.commit();
+
+    workbook.xlsx.writeFile(xlsxFileNameCourt)
     .then(() => {
-        console.log('...Done');
-   });
-
-// write to central file
-  var pathname = 'fmc-responses.xls'
-  const createCsvWriter = require('csv-writer').createObjectCsvWriter;
-  console.log('pathname ' + pathname );
-  const csvWriter = createCsvWriter({
-    path: pathname,
-    header: [
-    'timestamp',
-    'submission_id',
-    'court',
-    'user_type',
-    'another_reason',
-    'facilities',
-    'staff',
-    'security_and_safety',
-    'information_and_guidance',
-    'something_else',
-    'what_happened',
-    'want_reply',
-    'email_address'],
-    append: 'true'
+      console.log("saved");
+    })
+    .catch((error) => {
+      console.log("error", error);
     });
-  const records = [
-   csvOut
-  ];
+  });
+};
+// end writeXlsx
 
-  csvWriter.writeRecords(records)       // returns a promise
-    .then(() => {
-        console.log('...Done');
-   });
-} // end writeCsv
+
+
+
+console.log('**************** main is called ************')
+
+main ();
