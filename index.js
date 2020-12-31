@@ -3,36 +3,103 @@ const fs = require('fs');
 const csv = require('csv-parser');
 const csvToJson = require('csvtojson')
 const excelJS = require('exceljs');
-// var dataOut = new Object();
-// let csvIn = new Object();
+
 var dataOut = [];
 var csvIn = [];
 var fileList = [];
-var xlsxFileNameCourt, 
+var xlsxFileNameCourt;
 
 const directoryPath = path.join(__dirname, 'FMC-data');
 
-function main() {
+// read the csv file
+
+function readCsv(csvFileLocation) {
+  console.log('**************** readCsv ************');
+  console.log('csvFileLocation readCsv ' + csvFileLocation);
+
+  csvToJson()
+  .fromFile(csvFileLocation)
+  .then((dataIn)=>{
+    let csvIn = dataIn;
+  });
+  console.log('csvIn type = ' + typeof(csvIn));
+  console.log('csvIn csvToJson ' + JSON.stringify(csvIn));
+  return csvIn;
+
+
+}; // end readCsv
+function readDirectory (directoryPath) {
+  return new Promise(function(resolve,reject){
+    fs.readdir(directoryPath, function( error, files) {
+      if ( error )
+        return console.log("Error reading directory contents." + error);
+      else
+        resolve(files);
+    });
+  });
+};
+
+readCsv(csvFiles, function (error, csvDataIn) {
+  if (error) {
+    return console.log('cannot readCsv: ' + error);
+  };   
+  csvToJson()
+  .fromFile(csvFiles)
+  .then((csvDataIn)=>{
+    console.log('csvDataIn csvToJson ' + JSON.stringify(csvDataIn))
+    writeRow(csvDataIn, function (error, dataOut) {
+      if (error) {
+      return console.log('cannot writeRow: ' + error);
+      };
+    });
+  });      
+});
+
+      // create the row for output
+      createRow(csvIn, function (error, dataOut) {
+        if (error) {
+          return console.log('cannot createRow: ' + error);
+        };
+      });
+      const allData = {...csvIn, ...dataOut};
+      console.log('allData ' + allData);
+})
+
+readDirectory(directoryPath)
+.then(function(files) {
+  console.log('files ' + files)
+
+  // only select the csv files
+  const csvFiles = []
+  for (var i=0; i<files.length; i++) {
+    let csvFileLocation = directoryPath + '/' + files[i];
+    var isCsvFile = csvFileLocation.includes(".csv")
+    console.log('csvFileLocation in for loop ' + csvFileLocation);
+    if (isCsvFile) {
+      console.log('* csv file *' + csvFileLocation);
+      csvFiles.push(csvFileLocation)}
+    return csvFiles
+  };
+});
+
+.then(function(csvFiles){
+  // read all the csv files and add rows to the array
+    return Promise.all(function(csvFiles) {
+      csvFiles.map(function(csvFiles) {
+        return readCsv(csvFiles)
+      })
+    })
+  })
+.then(function(csvDataIn))
+    
   console.log('**************** main ************')
 
   // read all the files in the directory
 
-  fs.readdir(directoryPath, function( error, files) {
-    if ( error ) {
-        return console.log("Error reading directory contents.");
-    };
-    for (var i=0; i<files.length; i++) { 
-      // copy the files into the fileList array
-      fileList.push(files[i]);
-      console.log('files[i] ' + files[i])
-    }; // end for loop directory
-    console.log('fileList fs.readdir ' + fileList);
-    console.log('fileList length ' + fileList.length);    
-
     // process each file
 
-    for (var i=0; i<fileList.length; i++) {
-      let csvFileLocation = directoryPath + '/' + fileList[i];
+    for (var i=0; i<files.length; i++) {
+      let csvFileLocation = directoryPath + '/' + files[i];
       var isCsvFile = csvFileLocation.includes(".csv")
       console.log('csvFileLocation in for loop ' + csvFileLocation);
       if (isCsvFile) {
@@ -81,27 +148,6 @@ function main() {
 };  // end main
 
 
-// read the csv file
-
-function readCsv(csvFileLocation) {
-  console.log('**************** readCsv ************');
-  console.log('csvFileLocation readCsv ' + csvFileLocation);
-
-  csvToJson()
-  .fromFile(csvFileLocation)
-  .then((dataIn)=>{
-    console.log('dataIn csvToJson ' + JSON.stringify(dataIn));
-     // create the output row
-    /*createRow(csvIn, function (error, dataOut) {
-      if (error) {
-      return console.log('cannot createRow: ' + error);
-      };
-    }); */
-    let csvIn = dataIn;
-  });
-  console.log('csvIn type = ' + typeof(csvIn));
-
-}; // end readCsv
 
 // create the row object
 
@@ -212,7 +258,6 @@ function initWorkbook (path) {
   })
 
 }; // end initWorkbook
-
 function writeXlsx(xlsxFileNameCourt, dataOut) {
   console.log('**************** writeXlsx ************')
   console.log('xlsxFileNameCourt ' + xlsxFileNameCourt );
@@ -225,7 +270,8 @@ function writeXlsx(xlsxFileNameCourt, dataOut) {
 //  const createCsvWriterCourt = require('csv-writer').createObjectCsvWriter;
   var workbook = new excelJS.Workbook();
   var worksheet = workbook.getWorksheet(1);
-  workbook.xlsx.readFile(xlsxFileNameCourt)
+  w
+orkbook.xlsx.readFile(xlsxFileNameCourt)
   .then(function() {
     console.log('writexlsx worksheet ' + worksheet);
     worksheet.addRow(dataOut);
